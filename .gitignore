@@ -5,6 +5,22 @@
 # backend/    — not this project's code; a 1.9GB read-only clone of Mads
 #               Lorentzen's own already-public ai-job-search repo. Duplicating
 #               it would be redundant and blow past GitHub's size limits.
+#               EXCEPTION (see runs/35-fix-missing-backend-dependency.md):
+#               server/instances.py copies backend/.claude/ into every new
+#               profile's workspace at runtime, so a fresh clone with NO
+#               backend/ at all has no working AI features — the app builds
+#               and starts fine, then every evaluate/tailor/cover-letter
+#               call fails or comes back confused. Rather than shipping (or
+#               auto-cloning) his whole repo, the negated paths below track
+#               just the handful of files JobLander's own prompts
+#               (server/main.py's EVALUATE_PROMPT/TAILOR_PROMPT/
+#               COVER_LETTER_PROMPT) actually read by path, plus SKILL.md
+#               (the skill's own registration file). Everything else under
+#               backend/ — his job-search CLIs, LaTeX/PDF generation,
+#               interview-prep feature, sample CVs/cover letters — stays
+#               ignored, because JobLander never uses any of it. See
+#               backend/.claude/skills/job-application-assistant/NOTICE.md
+#               for attribution.
 # instances/  — runtime user data (real CVs, names, generated documents).
 #               This directory does not exist right now (deleted during
 #               cleanup) but server/instances.py RECREATES IT AUTOMATICALLY
@@ -12,7 +28,13 @@
 #               line, one test run before `git add .` would commit every
 #               future profile's real personal data.
 # .impeccable/ — local design-tool cache, not app source.
-backend/
+backend/*
+!backend/.claude/
+backend/.claude/*
+!backend/.claude/skills/
+backend/.claude/skills/*
+!backend/.claude/skills/job-application-assistant/
+backend/.claude/skills/job-application-assistant/07-interview-prep.md
 instances/
 .impeccable/
 

@@ -66,6 +66,28 @@ class PathEscapeError(Exception):
     instance's output/ directory."""
 
 
+class BackendDependencyMissing(Exception):
+    """Raised when backend/ - the local clone of Mads Lorentzen's
+    ai-job-search project that supplies the .claude/ skill files every
+    instance is seeded from (see module docstring) - isn't present or
+    doesn't look right.
+
+    Without this check, create_instance() used to silently fall back to
+    creating an EMPTY .claude/ directory and carry on as if nothing were
+    wrong: /v1/users would return 200, a profile would appear to save
+    fine, and only later - deep inside a real (billed) /v1/evaluate,
+    /v1/tailor, or /v1/cover-letter call - would the model discover on its
+    own that 04-job-evaluation.md, 05-cv-templates.md, etc. don't exist,
+    and either produce a confusing "I can't find the scoring framework"
+    response or burn extra turns/tokens searching for files that were
+    never there. Raising here instead turns that into an immediate,
+    honest failure at the one place the copy actually happens, with a
+    message that tells the caller exactly what to do about it (see
+    server/main.py's POST /v1/users, which turns this into a proper HTTP
+    error response instead of a raw 500).
+    """
+
+
 def _instance_dir(instance_id: str) -> Path:
     # instanceId is server-generated (uuid4 hex) but arrives on every
     # request as a client-supplied string - validate defensively before
@@ -126,18 +148,45 @@ def _write_profile_file(
     (skill_dir / "01-candidate-profile.md").write_text(profile_md, encoding="utf-8")
 
 
+def _backend_skill_present() -> bool:
+    """Marker check for "is the AI skill dependency actually here and does
+    it look right", not just "does some directory happen to exist". Checks
+    for the job-application-assistant skill folder specifically (not just
+    backend/.claude/) and one of its reference files
+    (04-job-evaluation.md - read by EVALUATE_PROMPT, the very first real
+    AI call every new profile makes) as a sanity check against a partial/
+    corrupted checkout, not just a missing one."""
+    skill_dir = CLONE_DIR / ".claude" / "skills" / "job-application-assistant"
+    return skill_dir.is_dir() and (skill_dir / "04-job-evaluation.md").is_file()
+
+
 def create_instance(name: str) -> str:
     """Provision a fresh instance workspace and return its id. No model
-    call - plain filesystem setup only."""
+    call - plain filesystem setup only.
+
+    Raises BackendDependencyMissing (before creating anything on disk) if
+    the backend/ dependency's AI skill files aren't present - see that
+    exception's docstring for why this used to fail silently instead.
+    """
+    if not _backend_skill_present():
+        raise BackendDependencyMissing(
+            "The AI skill files this app needs aren't set up yet: "
+            f"{CLONE_DIR / '.claude' / 'skills' / 'job-application-assistant'} "
+            "is missing or incomplete. This app ships a small subset of "
+            "Mads Lorentzen's ai-job-search skill files directly in the repo "
+            "(backend/.claude/skills/job-application-assistant/) - if you're "
+            "seeing this, your checkout may be incomplete (a shallow/sparse "
+            "clone, or files deleted after cloning). Re-clone the repo, or "
+            "see the README's 'Where the AI logic comes from' section for "
+            "manual setup instructions."
+        )
+
     instance_id = uuid.uuid4().hex
     d = INSTANCES_DIR / instance_id
     d.mkdir(parents=True, exist_ok=False)
 
     claude_src = CLONE_DIR / ".claude"
-    if claude_src.is_dir():
-        shutil.copytree(claude_src, d / ".claude")
-    else:
-        (d / ".claude").mkdir(parents=True, exist_ok=True)
+    shutil.copytree(claude_src, d / ".claude")
 
     (d / "profile").mkdir(exist_ok=True)
     (d / "templates").mkdir(exist_ok=True)

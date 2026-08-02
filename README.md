@@ -8,19 +8,61 @@ download as a real `.docx` file — no copy-pasting model output, no manual form
 Everything runs on your own machine. Nothing is uploaded anywhere except the AI calls
 themselves, which go through your existing Claude Code login.
 
+---
+
+## Get started (Windows)
+
+**The easiest way to install JobLander: download one file and run it. No git, no cloning,
+nothing else to download first.**
+
+1. Download **[`Get-JobLander.bat`](https://raw.githubusercontent.com/edy-dos-santos/joblander/main/Get-JobLander.bat)**
+   (right-click the link and choose "Save link as…", or just click it and let your browser save
+   the file — don't open it *in* the browser).
+2. Double-click the file you just downloaded.
+
+That's the whole first step. It explains on screen exactly what it's about to do, downloads
+JobLander from this repository onto your computer (your Desktop by default — it'll ask first
+if a JobLander folder is already there, and it never overwrites saved profiles without asking),
+and then automatically runs the same installer described under "Easy install (Windows)" below to
+get Claude Code, Python, and everything else set up. Nothing to install first, no terminal
+required.
+
+### Other ways to get it
+
+If you already use git, or you'd rather have the full repository on disk for some other reason:
+
+- **Clone it**: `git clone https://github.com/edy-dos-santos/joblander.git`, then double-click
+  `Install-JobLander.bat` inside the cloned folder (same installer either way — see "Easy install
+  (Windows)" below).
+- **Download the ZIP by hand**: use GitHub's own green "Code → Download ZIP" button on the
+  [repo page](https://github.com/edy-dos-santos/joblander), extract it, then double-click
+  `Install-JobLander.bat` inside the extracted folder.
+
+---
+
 ## Where the AI logic comes from
 
 The actual job-fit scoring, gap analysis, resume tailoring, and cover-letter writing are not
 built from scratch here. They're powered by the **`job-application-assistant` skill**, which
 originates from **[ai-job-search](https://github.com/MadsLorentzen/ai-job-search)**, a project
 by **Mads Lorentzen** — all credit for the underlying scoring framework, candidate-profile
-format, and interview-prep logic belongs there.
+format, and writing-style rules belongs there.
 
-This app doesn't run against that repo directly. It runs against a locally-modified copy the
-owner maintains on their own machine — modified from the original by trimming it down for this
-use case: the job-interview-prep feature was kept, but the LaTeX/PDF generator and the
-job-search/scraping tooling were deliberately scrapped, along with some skill adjustments.
-The `backend\` folder in this app is a clone of *that* modified local copy, kept read-only.
+**This is already set up for you — there's nothing to install or clone separately.** This repo
+ships the specific skill files JobLander's server actually reads, directly under
+[`backend/.claude/skills/job-application-assistant/`](backend/.claude/skills/job-application-assistant/):
+the candidate-profile and behavioral-profile format, the job-fit scoring framework, the
+CV-tailoring and cover-letter-writing guidance, and the skill's own definition file. See that
+folder's `NOTICE.md` for the exact attribution. Everything else from Mads Lorentzen's project —
+his job-search/scraping CLIs, LaTeX/PDF document generation, and interview-prep feature — is
+**not** included, because JobLander doesn't use any of it: JobLander runs its own evaluate/
+tailor/cover-letter prompts against just those files and renders `.docx` output with its own
+pipeline (see below), never his LaTeX toolchain.
+
+If `backend/.claude/skills/job-application-assistant/` is ever missing or incomplete (an
+incomplete download, or files deleted by hand), profile creation will fail with a clear error
+telling you so — the fix is just to re-clone or re-download the repo; see
+[Troubleshooting](#troubleshooting) below.
 
 What's original to *this* app on top of all that: the entire browser UI, the FastAPI bridge
 server that drives the skill through the Claude Agent SDK on a per-profile basis, and the
@@ -31,9 +73,9 @@ output into an actual downloadable Word document — none of that existed in any
 
 ## Before you start
 
-**On Windows, the easiest way to get set up is to skip ahead to "Easy install (Windows)" just
-below** — it handles everything in this list for you automatically, with nothing to install by
-hand.
+**On Windows, the easiest way to get set up is the one-file download in "Get started (Windows)"
+above** — it (and the installer described below, which it runs automatically) handles everything
+in this list for you, with nothing to install by hand.
 
 If you'd rather do it yourself (any OS, or you're troubleshooting), you need:
 
@@ -45,6 +87,9 @@ If you'd rather do it yourself (any OS, or you're troubleshooting), you need:
 - A modern browser (Chrome, Edge, Firefox).
 
 ## Easy install (Windows)
+
+*(If you used `Get-JobLander.bat` above, this already ran for you automatically — this section
+is here for reference, or for anyone who cloned/downloaded the repo directly instead.)*
 
 Two double-click scripts live at the root of this app folder — no terminal, no manual `pip
 install`:
@@ -221,10 +266,12 @@ any other file download — there's nothing special to configure.
 
 | Problem | What to check |
 |---|---|
+| `Get-JobLander.bat` says it couldn't download the setup script | Check your internet connection, then run it again. On a work/school network, a firewall may be blocking `github.com`/`raw.githubusercontent.com` — try the "Other ways to get it" options in "Get started (Windows)" instead. |
 | "Local backend not reachable" banner | Is `python main.py` (or the `Start-JobLander.bat` window) still running? Restart it if not. |
 | `Install-JobLander.bat` fails partway through | Read the message it printed — it explains what went wrong and what to do next. It's always safe to just run it again. |
 | Red "Couldn't reach Claude Code" on the connection check | Open a terminal and run `claude login`, then click Retry. This means the *server* is fine but your Claude Code session isn't — different from the banner above. |
 | AI actions show a "paused" message | You (or someone) clicked Disconnect on the AI provider connections screen. Click Reconnect there to resume. |
 | Downloads land with a strange name or won't open | Hard-refresh the page (Ctrl+Shift+R) — you may be running an old cached copy of the app. |
 | An AI step fails immediately | Confirm you're logged into Claude Code (`claude` CLI) on this machine. |
+| Creating a profile fails with a message about AI skill files being missing/incomplete | Your checkout of `backend/.claude/skills/job-application-assistant/` (see "Where the AI logic comes from" above) is incomplete or was deleted. Re-clone or re-download the repo — nothing else to configure. |
 | Nothing happens when you click something | Check the browser console for errors, then try a fresh tab. |

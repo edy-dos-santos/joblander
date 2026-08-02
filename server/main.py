@@ -81,7 +81,16 @@ class UsersRequest(BaseModel):
 
 @app.post("/v1/users")
 def create_user(body: UsersRequest):
-    instance_id = instances.create_instance(body.name or "")
+    try:
+        instance_id = instances.create_instance(body.name or "")
+    except instances.BackendDependencyMissing as e:
+        # Turns a would-be silent "empty skill folder, fails weirdly deep
+        # inside a later AI call" (or, before this endpoint existed, an
+        # unhandled 500 with a raw stack trace) into one clear, actionable
+        # error at the earliest possible point - profile creation, before
+        # anything else about this instance is even attempted.
+        logger.error("v1/users: backend dependency missing: %s", e)
+        return JSONResponse(error_body(str(e)), status_code=503)
     return {"id": instance_id}
 
 
