@@ -1,0 +1,47 @@
+# Root .gitignore for the whole published tree (frontend/, server/, README.md,
+# and anything else that ends up at repo root).
+
+# ─── CRITICAL — do not remove these three, see GITHUB-UPLOAD-GUIDE.md Step 0 ───
+# backend/    — not this project's code; a 1.9GB read-only clone of Mads
+#               Lorentzen's own already-public ai-job-search repo. Duplicating
+#               it would be redundant and blow past GitHub's size limits.
+# instances/  — runtime user data (real CVs, names, generated documents).
+#               This directory does not exist right now (deleted during
+#               cleanup) but server/instances.py RECREATES IT AUTOMATICALLY
+#               the moment the app is run from this folder — without this
+#               line, one test run before `git add .` would commit every
+#               future profile's real personal data.
+# .impeccable/ — local design-tool cache, not app source.
+backend/
+instances/
+.impeccable/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+
+# Word lock files
+~$*.docx
+~$*.doc
+
+# Env / secrets
+.env
+.env.*
