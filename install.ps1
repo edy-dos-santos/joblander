@@ -527,9 +527,38 @@ function Step-InstallDependencies {
         Write-Info "Continuing without it - if pip reports SSL/certificate errors below, that's likely why."
     }
     Write-Info "Installing: $($RequiredPackages -join ', ')"
-    $exit = Invoke-PipInstall -Packages $RequiredPackages -CertPath $CertPath
+
+    # SSL/connection errors here have been observed to be transient (antivirus
+    # web-shields periodically re-establish their interception certificate;
+    # a flaky network blip can also produce the exact same
+    # "unable to get local issuer certificate" pip error even with a correct
+    # --cert). A single retry after a short pause costs little and has a real
+    # chance of clearing a one-off failure rather than stopping the whole
+    # install over something that would've worked a few seconds later.
+    $maxAttempts = 3
+    $exit = 1
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        if ($attempt -gt 1) {
+            Write-Warn "Retrying (attempt $attempt of $maxAttempts)..."
+            Start-Sleep -Seconds 5
+        }
+        $exit = Invoke-PipInstall -Packages $RequiredPackages -CertPath $CertPath
+        if ($exit -eq 0) { break }
+    }
+
     if ($exit -ne 0) {
-        Write-Err "pip failed to install one or more dependencies (exit code $exit)."
+        Write-Err "pip failed to install one or more dependencies after $maxAttempts attempt(s) (exit code $exit)."
+        if ($CertPath) {
+            Write-Info "This machine has Avast, and its certificate was used ($CertPath) - if the error above"
+            Write-Info "mentions 'certificate verify failed' or 'unable to get local issuer certificate', that"
+            Write-Info "certificate may be temporarily out of date (Avast periodically rotates it) or Avast's"
+            Write-Info "Web Shield may be mid-update. Things to try: wait a minute and re-run this installer;"
+            Write-Info "check that Avast is fully up to date; or temporarily disable Avast's Web/HTTPS Shield"
+            Write-Info "just for this install, then re-enable it afterward."
+        }
+        $certArgForDisplay = if ($CertPath) { '--cert "' + $CertPath + '" ' } else { '' }
+        Write-Info "You can also try the exact command yourself in a terminal to see the full error:"
+        Write-Info ('  "' + $VenvPython + '" -m pip install ' + $certArgForDisplay + ($RequiredPackages -join ' '))
         throw "pip-failed"
     }
     Write-Ok "All dependencies installed."
