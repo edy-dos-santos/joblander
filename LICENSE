@@ -28,13 +28,17 @@ This software (the browser UI, the FastAPI bridge server, and the `.docx`
 rendering pipeline in `frontend/` and `server/`) is original work covered by
 the license above.
 
-At runtime, it depends on a separate, unmodified project it does not include:
+At runtime, it depends on a small part of a separate project:
 **[ai-job-search](https://github.com/MadsLorentzen/ai-job-search)** by
-**Mads Lorentzen**, itself MIT licensed. That project supplies the actual
-job-fit scoring, gap-analysis, resume-tailoring, and cover-letter logic this
-app calls into via the Claude Agent SDK — none of that logic is reimplemented
-or duplicated here. It is intentionally **not bundled** in this repository:
-see `.gitignore` and `GITHUB-UPLOAD-GUIDE.md` for why. Anyone running this
-software needs their own local copy of that project (or a compatible fork) to
-use the AI-powered features; its own MIT license and copyright notice govern
-that copy, independently of this one.
+**Mads Lorentzen**, itself MIT licensed. That project's `job-application-assistant`
+skill supplies the actual job-fit scoring, gap-analysis, resume-tailoring, and
+cover-letter logic this app calls into via the Claude Agent SDK — none of that
+logic is reimplemented here.
+
+Only the specific skill files this app's own code actually reads are included
+directly in this repository, under
+`backend/.claude/skills/job-application-assistant/` — see the `NOTICE.md` in
+that folder for the exact file list and attribution, under his project's MIT
+license. The rest of that project (its job-search/scraping tools, LaTeX/PDF
+document generation, and interview-prep feature) is deliberately **not**
+included, because JobLander doesn't use any of it.
