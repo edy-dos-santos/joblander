@@ -45,6 +45,10 @@ __pycache__/
 .venv/
 venv/
 
+# Machine-specific pip CA bundle (public certs + local Avast root if
+# present), regenerated fresh by install.ps1 on every run - never commit.
+.joblander-ca-bundle.pem
+
 # Node
 node_modules/
 

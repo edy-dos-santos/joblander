@@ -317,12 +317,56 @@ function Step-EnsurePythonAndVenv {
 }
 
 # ---------------------------------------------------------------------------
-# Avast / pip SSL workaround (this project's own known fix - see
-# .agent\current-task.md's Environment table).
+# Avast / pip SSL workaround.
+#
+# Root cause (confirmed via live repro, 2026-08-03 - see
+# joblander-pip-avast-ssl-fix.md for the full diagnostic writeup): passing
+# `--cert <wscert.pem>` alone is NOT a fix, it is a trap. Two facts combine:
+#   1. wscert.pem contains exactly ONE certificate - Avast's own Web/Mail
+#      Shield root - nothing else.
+#   2. pip's `--cert` REPLACES the entire CA bundle. It does not add to it.
+# So a bare `--cert $AvastCertPath` only verifies while Avast's Web Shield
+# happens to be actively intercepting *that specific connection* (server
+# cert chain terminates at the one root in the bundle). The moment Web
+# Shield isn't intercepting - mid-update, temporarily disabled, a per-app
+# exclusion, or just inconsistent per-connection behavior - pip sees the
+# REAL public pypi.org certificate chain, which can never verify against a
+# bundle containing only the Avast root. This is exactly why the failure
+# looked intermittent: it was a deterministic function of Avast's
+# interception state at that moment, not a flaky network blip, and retrying
+# the same broken bundle cannot fix a state that hasn't changed.
+#
+# Fix: never use the Avast root alone. Build a UNION bundle - pip's own
+# vendored certifi (the public CA set, always present since pip ships it)
+# PLUS the Avast root appended - so verification succeeds in BOTH states.
+# See New-CombinedCaBundle below.
 # ---------------------------------------------------------------------------
 function Get-AvastCertPathIfPresent {
     if (Test-Path -LiteralPath $AvastCertPath) { return $AvastCertPath }
     return $null
+}
+
+function New-CombinedCaBundle {
+    # Returns a path to a CA bundle containing BOTH the public CAs (from
+    # pip's own vendored certifi - a pure local/offline read, no network)
+    # AND the Avast root, if present. Written inside $Root only (hard rule
+    # 2: never write outside the app folder) and regenerated fresh on every
+    # run (cheap - a local file copy plus a read) so it can never go stale
+    # if Avast's cert or pip's vendored certifi bundle ever changes.
+    $baseBundle = & $VenvPython -c "from pip._vendor import certifi; print(certifi.where())"
+    if (-not $baseBundle -or -not (Test-Path -LiteralPath $baseBundle)) { return $null }
+    $combined = Join-Path $Root '.joblander-ca-bundle.pem'
+    Copy-Item -LiteralPath $baseBundle -Destination $combined -Force
+    $avast = Get-AvastCertPathIfPresent
+    if ($avast) {
+        # Certifi's own bundle file ends with a trailing newline already,
+        # but adding one more here costs nothing and guarantees the two
+        # PEM blocks never end up glued onto the same line regardless of
+        # how the source file happened to end.
+        Add-Content -LiteralPath $combined -Value ""
+        Add-Content -LiteralPath $combined -Value (Get-Content -LiteralPath $avast -Raw)
+    }
+    return $combined
 }
 
 function Test-AvastRunning {
@@ -364,12 +408,20 @@ function Install-PipPackagesWithRetry {
     # --cert). A few retries after a short pause cost little and have a real
     # chance of clearing a one-off failure rather than stopping the whole
     # install over something that would've worked a few seconds later.
-    $maxAttempts = 3
+    # Confirmed live (2026-08-03): 3 attempts at a 5s pause was not always
+    # enough - a real install run failed all 3, then the identical command
+    # against the identical venv succeeded immediately moments later when
+    # tried again by hand. That means the underlying interruption can
+    # outlast ~15-20s. Widened to 5 attempts with a longer, increasing pause
+    # (5s/10s/15s/20s) to give a longer blip more room to actually clear,
+    # while still being bounded (not an infinite/silent hang).
+    $maxAttempts = 5
     $exit = 1
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         if ($attempt -gt 1) {
-            Write-Warn "Retrying (attempt $attempt of $maxAttempts)..."
-            Start-Sleep -Seconds 5
+            $pauseSeconds = 5 * ($attempt - 1)
+            Write-Warn "Retrying in $pauseSeconds seconds (attempt $attempt of $maxAttempts)..."
+            Start-Sleep -Seconds $pauseSeconds
         }
         $exit = Invoke-PipInstall -Packages $Packages -CertPath $CertPath
         if ($exit -eq 0) { return $true }
@@ -377,12 +429,12 @@ function Install-PipPackagesWithRetry {
 
     Write-Err "pip failed to install $($Packages -join ', ') after $maxAttempts attempt(s) (exit code $exit)."
     if ($CertPath) {
-        Write-Info "This machine has Avast, and its certificate was used ($CertPath) - if the error above"
-        Write-Info "mentions 'certificate verify failed' or 'unable to get local issuer certificate', that"
-        Write-Info "certificate may be temporarily out of date (Avast periodically rotates it) or Avast's"
-        Write-Info "Web Shield may be mid-update. Things to try: wait a minute and re-run this installer;"
-        Write-Info "check that Avast is fully up to date; or temporarily disable Avast's Web/HTTPS Shield"
-        Write-Info "just for this install, then re-enable it afterward."
+        Write-Info "A combined certificate bundle was used ($CertPath), which should work whether or"
+        Write-Info "not Avast is intercepting this connection - if the error above still mentions"
+        Write-Info "'certificate verify failed' or 'unable to get local issuer certificate', that points"
+        Write-Info "at something more specific than a routine Avast state change. Things to try: re-run"
+        Write-Info "this installer (in case it's still transient); check whether Avast's Web Shield has"
+        Write-Info "an active block or per-app rule for this Python; or check your network/proxy setup."
     }
     $certArgForDisplay = if ($CertPath) { '--cert "' + $CertPath + '" ' } else { '' }
     Write-Info "You can also try the exact command yourself in a terminal to see the full error:"
@@ -560,11 +612,13 @@ function Step-InstallDependencies {
     param([string]$CertPath)
     Write-Step "[Step 3 of 4] Installing dependencies"
     if ($CertPath) {
-        Write-Info "Avast antivirus detected - using its certificate for these installs so pip's HTTPS connections aren't blocked:"
+        Write-Info "Using a combined certificate bundle for these installs (the standard public"
+        Write-Info "certificates plus Avast's, if present) so pip's HTTPS connections work whether"
+        Write-Info "or not Avast happens to be intercepting them:"
         Write-Info "  $CertPath"
-    } elseif (Test-AvastRunning) {
-        Write-Warn "Avast appears to be running, but its certificate file wasn't found at the expected location."
-        Write-Info "Continuing without it - if pip reports SSL/certificate errors below, that's likely why."
+    } else {
+        Write-Warn "Couldn't build a certificate bundle for pip - continuing with pip's defaults."
+        Write-Info "If pip reports SSL/certificate errors below, that's likely why."
     }
     Write-Info "Installing: $($RequiredPackages -join ', ')"
     if (-not (Install-PipPackagesWithRetry -Packages $RequiredPackages -CertPath $CertPath)) {
@@ -672,7 +726,7 @@ function Invoke-Install {
     try {
         $claude = Step-EnsureClaudeCliPresent
         Step-EnsurePythonAndVenv
-        $certPath = Get-AvastCertPathIfPresent
+        $certPath = New-CombinedCaBundle
         Step-VerifyClaudeLogin -Claude $claude -CertPath $certPath
         Step-InstallDependencies -CertPath $certPath
         Step-Finish
