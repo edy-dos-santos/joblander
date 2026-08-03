@@ -1,9 +1,10 @@
 # Launches JobLander: starts the local server from its dedicated Python
 # environment, waits for it to come up (polling, not a blind sleep), then
 # opens your browser. Created by install.ps1 - safe to re-run any time.
+# This file lives in scripts\ - $Root is the app's actual root folder.
 
 $ErrorActionPreference = 'Stop'
-$Root = $PSScriptRoot
+$Root = Split-Path -Parent $PSScriptRoot
 $VenvPython = Join-Path $Root '.venv\Scripts\python.exe'
 $ServerDir = Join-Path $Root 'server'
 $Url = 'http://127.0.0.1:8787/'

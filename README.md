@@ -108,7 +108,9 @@ install`:
 
 Both are plain `.bat` files: double-click them from File Explorer like any other program. Each
 opens a console window that narrates what it's doing and pauses at the end so you can read the
-result before the window closes.
+result before the window closes. (Each `.bat` is a thin wrapper around a same-named PowerShell
+script under `scripts\` — Windows won't run `.ps1` files by double-click, so the `.bat` files are
+what you're meant to click; you shouldn't need to open `scripts\` yourself.)
 
 ## Starting the app (manual, or non-Windows)
 

@@ -36,7 +36,9 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-$Root = $PSScriptRoot
+# This file lives in scripts\ - $Root is the app's actual root folder
+# (server\, .venv\, Start-JobLander.bat all live there, one level up).
+$Root = Split-Path -Parent $PSScriptRoot
 $ServerDir = Join-Path $Root 'server'
 $VenvDir = Join-Path $Root '.venv'
 $VenvPython = Join-Path $VenvDir 'Scripts\python.exe'
@@ -631,14 +633,15 @@ function Step-InstallDependencies {
 # Step 4: finish up
 # ---------------------------------------------------------------------------
 function New-StartScripts {
-    $ps1Path = Join-Path $Root 'start-joblander.ps1'
+    $ps1Path = Join-Path $Root 'scripts\start-joblander.ps1'
     $ps1Content = @'
 # Launches JobLander: starts the local server from its dedicated Python
 # environment, waits for it to come up (polling, not a blind sleep), then
 # opens your browser. Created by install.ps1 - safe to re-run any time.
+# This file lives in scripts\ - $Root is the app's actual root folder.
 
 $ErrorActionPreference = 'Stop'
-$Root = $PSScriptRoot
+$Root = Split-Path -Parent $PSScriptRoot
 $VenvPython = Join-Path $Root '.venv\Scripts\python.exe'
 $ServerDir = Join-Path $Root 'server'
 $Url = 'http://127.0.0.1:8787/'
@@ -701,7 +704,7 @@ Wait-Process -Id $proc.Id -ErrorAction SilentlyContinue
     $batPath = Join-Path $Root 'Start-JobLander.bat'
     $batContent = @"
 @echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-joblander.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-joblander.ps1"
 pause
 "@
     Set-Content -LiteralPath $batPath -Value $batContent -Encoding ascii

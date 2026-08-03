@@ -104,7 +104,7 @@ function Test-LooksLikePreviousInstall {
         if ($sub -and @($sub).Count -gt 0) { $hasProfileData = $true }
     }
     $hasAppFiles = (Test-Path -LiteralPath (Join-Path $Dir 'server\main.py')) -or `
-                   (Test-Path -LiteralPath (Join-Path $Dir 'install.ps1'))
+                   (Test-Path -LiteralPath (Join-Path $Dir 'scripts\install.ps1'))
     return [PSCustomObject]@{
         HasProfileData     = $hasProfileData
         LooksLikeJobLander = ($hasAppFiles -or $hasProfileData)
@@ -251,9 +251,9 @@ function Copy-JobLanderFiles {
 # ---------------------------------------------------------------------------
 function Invoke-RealInstaller {
     param([string]$TargetDir)
-    $installPs1 = Join-Path $TargetDir 'install.ps1'
+    $installPs1 = Join-Path $TargetDir 'scripts\install.ps1'
     if (-not (Test-Path -LiteralPath $installPs1)) {
-        Write-Err "Could not find install.ps1 inside the downloaded app at:"
+        Write-Err "Could not find scripts\install.ps1 inside the downloaded app at:"
         Write-Err "  $TargetDir"
         Write-Info "The download may be incomplete, or the app's layout changed. Try running Get-JobLander.bat again, or download the app manually from $RepoPageUrl."
         throw "installer-missing"
