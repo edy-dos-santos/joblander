@@ -10,6 +10,21 @@ themselves, which go through your existing Claude Code login.
 
 ---
 
+## Screenshots
+
+|  |  |
+|---|---|
+| ![Landing screen with the sidebar expanded](docs/screenshots/01-landing.png) | ![Real Claude Code connection check](docs/screenshots/02-connection-check.png) |
+| ![Creating a profile by pasting CV text](docs/screenshots/03-create-profile-cv-info.png) | ![A newly created profile, ready for its first application](docs/screenshots/04-profile-created.png) |
+
+**Profiles for different roles, side by side** — the same person can keep separate profiles
+per job track (here, a Data Analyst profile and a Marketing Coordinator profile for the same
+fictional "JD Tester"), each with its own CV info, applications, and library:
+
+![Two profiles for the same person, one per role](docs/screenshots/05-multiple-profiles.png)
+
+---
+
 ## Get started (Windows)
 
 **The easiest way to install JobLander: download one file and run it. No git, no cloning,
