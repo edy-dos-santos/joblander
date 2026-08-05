@@ -10,6 +10,57 @@ themselves, which go through your existing Claude Code login.
 
 ---
 
+## Quick Start
+
+**New to this kind of tool? Start here.** No coding knowledge needed — just follow the steps
+for your computer.
+
+### Windows
+
+1. Right-click this link → **"Save link as…"** (or just click it and let your browser save the
+   file): **[`Get-JobLander.bat`](https://raw.githubusercontent.com/edy-dos-santos/joblander/main/Get-JobLander.bat)**
+2. Open the file you just saved (usually in your **Downloads** folder) — **double-click** it.
+3. A black window opens and explains, in plain language, exactly what it's about to do before
+   it does it. Just read along and follow the prompts.
+4. When it finishes, look for a new **JobLander** icon on your Desktop. Double-click that icon
+   any time you want to open the app — that's it, you're set up.
+
+### macOS / Linux
+
+1. Open the **Terminal** app.
+   - macOS: press `Cmd + Space`, type `Terminal`, press Enter.
+   - Linux: look for "Terminal" in your applications menu.
+2. Copy the line below, paste it into that Terminal window (right-click → Paste, or
+   `Cmd/Ctrl + V`), and press Enter:
+   ```
+   curl -fsSL https://raw.githubusercontent.com/edy-dos-santos/joblander/main/scripts/get-joblander.sh | bash
+   ```
+3. Read what it prints as it goes — it explains each step in plain language before doing it.
+
+### One thing every install needs
+
+JobLander doesn't have its own account or sign-in — all of its AI features run through
+[**Claude Code**](https://claude.com/claude-code), a free tool from Anthropic that you log into
+once on your computer. If you don't have it yet, don't worry about installing it yourself first —
+the steps above walk you through that too, at the point where it's actually needed.
+
+### Still stuck?
+
+- Jump straight to **[Troubleshooting](#troubleshooting)** near the bottom of this page.
+- The **[Get started (Windows)](#get-started-windows)** / **[Get started (macOS / Linux)](#get-started-macos--linux)**
+  sections just below cover the same install, plus alternative methods (using `git`, downloading
+  a ZIP by hand) if the quick path above doesn't work for you.
+
+### Find your way around this page
+
+- **[Screenshots](#screenshots)** — see what the app actually looks like
+- **[Get started (Windows)](#get-started-windows)** / **[Get started (macOS / Linux)](#get-started-macos--linux)** — the full install instructions
+- **[Where the AI logic comes from](#where-the-ai-logic-comes-from)** — what this app is built on, and what's original to it
+- **[Running a job application](#running-a-job-application)** — the everyday workflow, one step at a time
+- **[Troubleshooting](#troubleshooting)** — common problems and their fixes
+
+---
+
 ## Screenshots
 
 |  |  |
