@@ -759,15 +759,40 @@ pause
     Set-Content -LiteralPath $batPath -Value $batContent -Encoding ascii
 }
 
+function New-DesktopShortcut {
+    # Best-effort, non-fatal: Start-JobLander.bat (created just above) is
+    # the real entry point this shortcut just points at, so a failure here
+    # shouldn't stop setup - same "optional convenience, not a hard
+    # requirement" posture as the Playwright Chromium download above.
+    # CreateShortcut+Save() on an existing .lnk overwrites it in place, so
+    # this is safe to re-run on every install/update.
+    try {
+        $desktop = [Environment]::GetFolderPath('Desktop')
+        $shortcutPath = Join-Path $desktop 'JobLander.lnk'
+        $wsh = New-Object -ComObject WScript.Shell
+        $shortcut = $wsh.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = Join-Path $Root 'Start-JobLander.bat'
+        $shortcut.WorkingDirectory = $Root
+        $shortcut.IconLocation = "$(Join-Path $Root 'joblander-badge.ico'),0"
+        $shortcut.Save()
+        Write-Ok "Desktop shortcut created."
+    } catch {
+        Write-Warn "Could not create a desktop shortcut ($($_.Exception.Message))."
+        Write-Info "You can still launch JobLander by double-clicking Start-JobLander.bat directly."
+    }
+}
+
 function Step-Finish {
     Write-Step "[Step 4 of 4] Finishing up"
     Write-Info "Creating Start-JobLander.bat..."
     New-StartScripts
+    Write-Info "Creating a desktop shortcut..."
+    New-DesktopShortcut
     Write-Ok "Done."
 
     Write-Banner "You're all set!"
-    Write-Host "Double-click Start-JobLander.bat any time to open JobLander." -ForegroundColor Green
-    Write-Host "It starts the app and opens your browser automatically." -ForegroundColor Green
+    Write-Host "A JobLander shortcut is on your Desktop - double-click it any time to open the app." -ForegroundColor Green
+    Write-Host "(Or double-click Start-JobLander.bat directly, inside the app folder.)" -ForegroundColor Green
 }
 
 # ---------------------------------------------------------------------------

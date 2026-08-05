@@ -152,6 +152,11 @@ install`:
 - **`Start-JobLander.bat`** — created automatically by the installer once setup finishes. Double-
   click it any time after that to start the app and open your browser automatically.
 
+The installer also creates a **`JobLander` shortcut on your Desktop** pointing at
+`Start-JobLander.bat` — that's the easiest way to launch the app after the first install. If it's
+ever missing (or you want to confirm it still points to the right place), just run
+`Install-JobLander.bat` again — it's safe to re-run any time and recreates the shortcut in place.
+
 Both are plain `.bat` files: double-click them from File Explorer like any other program. Each
 opens a console window that narrates what it's doing and pauses at the end so you can read the
 result before the window closes. (Each `.bat` is a thin wrapper around a same-named PowerShell
