@@ -152,6 +152,14 @@ body.sidebar-open .sidebar{width:236px}
 .sidebar :focus-visible{outline-color:var(--mustard)}
 .sidebar-label{overflow:hidden;display:flex;align-items:center;gap:8px}
 .sidebar-soon{font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.14);padding:2px 6px;border-radius:20px;color:#D8CFC0}
+/* Small permanent brand credit, pinned to the bottom of the sidebar rail
+   via margin-top:auto on the flex-column .sidebar parent - present in both
+   the collapsed (60px) and expanded (236px) states, same as every
+   .sidebar-item above it; naturally clipped by the parent's overflow-x:
+   hidden when collapsed, exactly like the nav labels are. */
+.sidebar-brand{margin-top:auto;padding:14px 18px 16px;font-size:12px;color:#D8CFC0;white-space:nowrap;overflow:hidden;font-family:'DM Sans',sans-serif}
+.sidebar-brand-brit{color:#3ECF6E;font-weight:700}
+.sidebar-brand-ai{color:#FFD84D;font-weight:700}
 .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(15,10,6,.4);z-index:250}
 @media(max-width:600px){
   body.sidebar-open .sidebar-backdrop{display:block}
@@ -414,11 +422,16 @@ body.sidebar-open .sidebar{width:236px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/></svg>
       <span class="sidebar-label">About</span>
     </button>
+    <button class="sidebar-item" type="button" data-view="support">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+      <span class="sidebar-label">Support</span>
+    </button>
     <button class="sidebar-item sidebar-item-disabled" id="sidebar-github" type="button" disabled aria-label="GitHub repo — not published yet" title="Not published yet">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.75.5 12.06c0 5.05 3.29 9.33 7.86 10.84.57.11.78-.25.78-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.78 2.72 1.26 3.38.97.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.2 1.18a11.1 11.1 0 0 1 5.82 0c2.22-1.5 3.2-1.18 3.2-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.71 5.4-5.29 5.69.42.36.78 1.07.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .31.21.68.79.56A11.56 11.56 0 0 0 23.5 12.06C23.5 5.75 18.27.5 12 .5z"/></svg>
       <span class="sidebar-label">GitHub repo<span class="sidebar-soon">Soon</span></span>
     </button>
   </div>
+  <div class="sidebar-brand" aria-hidden="true">a <span class="sidebar-brand-brit">BRIT</span><span class="sidebar-brand-ai">&amp;AI</span> app</div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 <div id="app">
@@ -1406,6 +1419,7 @@ function render() {
     library: renderLibrary,
     aiProviders: renderAiProviders,
     about: renderAbout,
+    support: renderSupport,
   };
   const fn = views[AppState.view] || renderLanding;
   el.appendChild(fn());
@@ -1435,7 +1449,7 @@ const SIDEBAR_VIEW_MAP = {
   gate: 'home',
   home: 'home', userHome: 'home', newUser: 'home', applications: 'home',
   newApplication: 'home', library: 'home',
-  aiProviders: 'aiProviders', about: 'about',
+  aiProviders: 'aiProviders', about: 'about', support: 'support',
 };
 function updateSidebarActive() {
   const activeKey = SIDEBAR_VIEW_MAP[AppState.view] || null;
@@ -1508,9 +1522,46 @@ function renderLanding() {
       <div class="landing-tagline">AI Job Hunter</div>
       <p class="landing-sub">Give it your CV and a job posting. It maps what you've done against what the role asks for, tells you honestly where the gaps are, and drafts a tailored resume and cover letter you can download.</p>
       <div class="divider" style="max-width:220px;margin:24px auto"></div>
-      <button class="btn btn-primary btn-lg landing-cta" type="button" onclick="setView('gate')">Start Here ${icons.arrow}</button>
+      <div class="landing-cta" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-lg" type="button" onclick="setView('gate')">Start Here ${icons.arrow}</button>
+        <button class="btn btn-secondary btn-lg" type="button" onclick="showQuickGuide()">Quick Guide</button>
+      </div>
     </div>`;
   return wrap;
+}
+
+// ─── QUICK GUIDE ────────────────────────────────────────────────────────────
+// A modal, not a new `view` — this is a one-off reference someone reads and
+// dismisses, not a place they navigate to and from, so it skips the
+// sidebar-entry/SIDEBAR_VIEW_MAP/Back-button plumbing every real view needs.
+// Reuses the existing scrollable-modal pattern (see openMergePicker above)
+// since the step list is longer than a typical short dialog.
+// The steps below mirror the app's ACTUAL screens/buttons (wizardStep keys
+// A-F in renderNewApplication, the newUser wizard, and Library) — not a
+// generic onboarding checklist — so keep this in sync if that flow changes.
+function showQuickGuide() {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  modal.innerHTML = `<div class="card" style="max-width:560px;width:100%;margin:20px 0">
+    <h3 style="margin-bottom:4px">Quick Guide</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:18px">The actual path through JobLander, start to finish.</p>
+    <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:14px;font-size:15px;color:var(--text2);line-height:1.6">
+      <li><strong style="color:var(--text)">Start Here.</strong> Right on this screen — JobLander runs a quick check that it can reach Claude Code, then takes you to Profiles.</li>
+      <li><strong style="color:var(--text)">Create a profile.</strong> Give it your name, optionally upload a CV Template (the .docx/.pdf that defines your resume's layout), then add your CV Info — upload a file, paste raw text, or answer the guided Q&amp;A. Click "Create profile" and the AI structures it behind the scenes.</li>
+      <li><strong style="color:var(--text)">New application.</strong> Open your profile and click "New application," then either paste the job description or provide the posting's URL.</li>
+      <li><strong style="color:var(--text)">Resume &amp; Notes.</strong> Confirm or swap the CV Template/CV Info for this application, add optional notes to steer the AI, choose docx or LaTeX/PDF output, then click "Run analysis."</li>
+      <li><strong style="color:var(--text)">Review the fit.</strong> JobLander extracts the job description and evaluates your fit against it. If it finds real gaps, it walks you through choosing how to address each one before you click "Proceed to tailoring."</li>
+      <li><strong style="color:var(--text)">Tailor your resume.</strong> The AI writes your tailored resume; you land on a preview with a real download link, plus "Re-tailor with feedback" if you want another pass.</li>
+      <li><strong style="color:var(--text)">Add a cover letter.</strong> Pick a saved template or "Write from scratch" — the AI drafts it and gives you its own download link.</li>
+      <li><strong style="color:var(--text)">Everything lives in Library.</strong> Finished applications stay listed on your profile's screen with their download links; the "Library" button manages your CV Templates, CV Info entries, and cover-letter templates any time.</li>
+    </ol>
+    <div style="display:flex;justify-content:flex-end;margin-top:20px">
+      <button class="btn btn-primary" id="guide-close">Got it</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector('#guide-close').onclick = () => modal.remove();
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
 // ─── CONNECTIVITY GATE (Round 9) ────────────────────────────────────────────
@@ -1621,6 +1672,20 @@ function renderAbout() {
       <p>It runs locally. Your profiles, resumes and cover letters are stored in this browser and on this machine — nothing is uploaded anywhere else.</p>
       <p>Every claim the tailored resume makes is checked against what you actually gave it. Where the evidence is thin, it says so instead of inventing detail.</p>
       <p style="color:var(--text3);font-size:13px">Built on Claude. See the model selector in the top bar for which model handles a given run.</p>
+    </div>`;
+  return wrap;
+}
+
+// ─── SUPPORT ────────────────────────────────────────────────────────────────
+function renderSupport() {
+  const wrap = document.createElement('div');
+  wrap.className = 'fade-in info-page';
+  wrap.innerHTML = `
+    <h1 style="margin-bottom:18px">Support</h1>
+    <div class="card info-page">
+      <p>Found a bug, have a feature request, or just want a second opinion on how something works? Write to <a href="mailto:britandai.support@gmail.com" style="font-weight:600">britandai.support@gmail.com</a> — that's the one address behind both.</p>
+      <p>There's no in-app changelog or notification feed yet, so if you'd like to hear about new features or fixes as they ship, say so in that same email and we'll keep you posted.</p>
+      <p style="color:var(--text3);font-size:13px">Response times are best-effort — this is a real inbox, not an automated ticket queue.</p>
     </div>`;
   return wrap;
 }

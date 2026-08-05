@@ -42,7 +42,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $ServerDir = Join-Path $Root 'server'
 $VenvDir = Join-Path $Root '.venv'
 $VenvPython = Join-Path $VenvDir 'Scripts\python.exe'
-$RequiredPackages = @('fastapi', 'uvicorn', 'python-docx', 'jinja2', 'httpx', 'pydantic', 'claude-agent-sdk')
+$RequiredPackages = @('fastapi', 'uvicorn', 'python-docx', 'jinja2', 'httpx', 'pydantic', 'claude-agent-sdk', 'playwright')
 $AvastCertPath = 'C:\ProgramData\Avast Software\Avast\wscert.pem'
 $AppUrl = 'http://127.0.0.1:8787/'
 
@@ -445,6 +445,46 @@ function Install-PipPackagesWithRetry {
 }
 
 # ---------------------------------------------------------------------------
+# Playwright's Chromium browser binary - a separate download from the
+# `playwright` PIP package above. The pip package is just the Python
+# bindings; the actual browser executable (~100-300MB) is fetched via
+# `playwright install chromium` from Microsoft's own CDN, not PyPI, so it
+# gets its own retry loop rather than reusing Invoke-PipInstall/
+# Install-PipPackagesWithRetry above (different command, different failure
+# surface - no --cert flag support, since this isn't a pip invocation).
+# Powers the headless-browser job-posting fetch in
+# server\browser_research.py (LinkedIn/Seek research from /v1/evaluate,
+# etc.) - not required for the rest of the app to run, so a failure here is
+# a warning, not a hard stop: unlike a missing PIP package, JobLander's
+# other features still work fine without Chromium installed.
+# ---------------------------------------------------------------------------
+function Install-PlaywrightChromiumWithRetry {
+    $maxAttempts = 5
+    $exit = 1
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        if ($attempt -gt 1) {
+            $pauseSeconds = 5 * ($attempt - 1)
+            Write-Warn "Retrying the Chromium download in $pauseSeconds seconds (attempt $attempt of $maxAttempts)..."
+            Start-Sleep -Seconds $pauseSeconds
+        }
+        Write-Info "Running: python -m playwright install chromium"
+        # Out-Host for the same reason as Invoke-PipInstall/winget above -
+        # this function returns an exit code, and a bare call here would
+        # fold playwright's own console output into that return value.
+        & $VenvPython -m playwright install chromium | Out-Host
+        $exit = $LASTEXITCODE
+        if ($exit -eq 0) { return $true }
+    }
+
+    Write-Warn "Could not download the Chromium browser Playwright needs (exit code $exit) after $maxAttempts attempt(s)."
+    Write-Info "JobLander will still run without this - only the headless-browser job-posting fetch"
+    Write-Info "(used for sites like LinkedIn/Seek that block plain fetches) needs it. You can try again"
+    Write-Info "later yourself with:"
+    Write-Info ('  "' + $VenvPython + '" -m playwright install chromium')
+    return $false
+}
+
+# ---------------------------------------------------------------------------
 # Real Claude Code login check - mirrors server\main.py's GET
 # /v1/claude-status endpoint (model, max_turns=1, tools=[], timeout) as
 # instructed, rather than inventing a different technique. Written to a
@@ -627,6 +667,15 @@ function Step-InstallDependencies {
         throw "pip-failed"
     }
     Write-Ok "All dependencies installed."
+
+    Write-Info "Downloading the Chromium browser Playwright needs (used to fetch job postings from"
+    Write-Info "sites like LinkedIn/Seek that block plain automated fetches)..."
+    if (Install-PlaywrightChromiumWithRetry) {
+        Write-Ok "Chromium installed."
+    }
+    # Deliberately not throwing on failure here - see
+    # Install-PlaywrightChromiumWithRetry's own comment for why this is a
+    # warning, not a hard stop.
 }
 
 # ---------------------------------------------------------------------------

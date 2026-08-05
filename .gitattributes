@@ -1,0 +1,14 @@
+# Force POSIX shell scripts to always use LF line endings, regardless of
+# the cloning machine's core.autocrlf setting. A CRLF shebang line
+# (`#!/usr/bin/env bash\r`) fails outright on macOS/Linux ("bad
+# interpreter: /usr/bin/env bash\r: no such file or directory"), so this
+# must not be left to per-user git config - especially since this repo is
+# authored on Windows, where core.autocrlf=true is a common default that
+# would otherwise silently reintroduce CRLF into these files.
+*.sh text eol=lf
+
+# The existing Windows-side installer/launcher scripts are authored with
+# CRLF - pinned explicitly so a future contributor's git config can't
+# silently renormalize them to LF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf

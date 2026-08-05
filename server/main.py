@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 import agent_client
+import browser_research
 import docx_render
 import instances
 from claude_agent_sdk import ClaudeAgentOptions
@@ -241,6 +242,55 @@ async def messages_passthrough(body: MessagesRequest):
 
 
 # ==========================================================================
+# 1.5. Server-side job-posting URL pre-fetch (headless Chromium, via
+#      server/browser_research.py) - shared by /v1/evaluate, /v1/tailor,
+#      and /v1/cover-letter below.
+#
+#      Why a pre-fetch step instead of a tool the model calls itself: this
+#      keeps the behavior deterministic and auditable - one fetch, of one
+#      URL, triggered by this one explicit request, with the resulting text
+#      spliced into the prompt as plain context, rather than letting the
+#      model decide when/what to browse. WebFetch/WebSearch (already
+#      allowed for these endpoints) remain available to the agent for
+#      broader company research; this only replaces the "read the actual
+#      posting" step for the specific case where the posting field is
+#      nothing but a bare URL and that plain fetch is the kind of gated
+#      page (LinkedIn, Seek, ...) most likely to hit a login wall or
+#      JS-only shell without a real rendered browser.
+#
+#      Runs BEFORE the per-instance lock is acquired below (not inside it):
+#      this is a pure network fetch against a public URL, touches no
+#      instance workspace state, and doesn't need to be serialized against
+#      other calls for the same instance - holding the lock for the
+#      duration of a (possibly slow/timing-out) page load would only block
+#      unrelated concurrent requests against the same profile for no
+#      benefit.
+# ==========================================================================
+
+async def _maybe_prefetch_job_posting(job_posting: str | None) -> str:
+    """If `job_posting` is nothing but a bare URL, fetch that page's
+    rendered text server-side and use it as the actual posting text
+    instead. Otherwise, return `job_posting` unchanged (the normal case:
+    the frontend already extracts job-description text client-side before
+    calling these endpoints, so this is a defensive/second-path check, not
+    the primary route - see server/browser_research.py's module docstring
+    for the single-fetch, no-crawling scope this stays within)."""
+    text = (job_posting or "").strip()
+    if not browser_research.is_bare_url(text):
+        return job_posting or ""
+
+    use_saved_session = browser_research.should_use_saved_session(text)
+    logger.info(
+        "Pre-fetching job posting URL via headless browser: %s (saved session=%s)",
+        text, use_saved_session,
+    )
+    fetched = await browser_research.fetch_rendered_text(text, use_saved_session=use_saved_session)
+    if fetched.startswith("[browser-research error]"):
+        logger.warning("job-posting pre-fetch failed for %s: %s", text, fetched)
+    return fetched
+
+
+# ==========================================================================
 # 2. POST /v1/evaluate - skill-driven job-fit evaluation
 # ==========================================================================
 
@@ -300,6 +350,12 @@ there are no real gaps; "strategies" has 2-4 short strings per gap):
 
 @app.post("/v1/evaluate")
 async def evaluate(body: EvaluateRequest):
+    job_posting_text = await _maybe_prefetch_job_posting(body.jobPosting)
+    if job_posting_text.startswith("[browser-research error]"):
+        # Fail fast instead of spending a full (billed) agent turn
+        # evaluating against a guaranteed-garbage "job posting".
+        return JSONResponse(error_body(job_posting_text), status_code=502)
+
     lock = instances.get_lock(body.instanceId)
     async with lock:
         try:
@@ -308,7 +364,7 @@ async def evaluate(body: EvaluateRequest):
             return JSONResponse(error_body("Unknown instanceId"), status_code=404)
 
         model = agent_client.resolve_model(body.modelId)
-        prompt = EVALUATE_PROMPT.format(job_posting=body.jobPosting or "")
+        prompt = EVALUATE_PROMPT.format(job_posting=job_posting_text)
 
         options = ClaudeAgentOptions(
             cwd=str(instance_dir),
@@ -511,6 +567,10 @@ def _generate_options(instance_dir: Path, model: str) -> ClaudeAgentOptions:
 
 @app.post("/v1/tailor")
 async def tailor(body: GenerateRequest):
+    job_posting_text = await _maybe_prefetch_job_posting(body.jobPosting)
+    if job_posting_text.startswith("[browser-research error]"):
+        return JSONResponse(error_body(job_posting_text), status_code=502)
+
     lock = instances.get_lock(body.instanceId)
     async with lock:
         try:
@@ -523,7 +583,7 @@ async def tailor(body: GenerateRequest):
             company=body.company or "Unknown",
             role=body.role or "Unknown",
             notes=body.notes or "(none)",
-            job_posting=body.jobPosting or "",
+            job_posting=job_posting_text,
         )
 
         try:
@@ -590,6 +650,10 @@ async def tailor(body: GenerateRequest):
 
 @app.post("/v1/cover-letter")
 async def cover_letter(body: GenerateRequest):
+    job_posting_text = await _maybe_prefetch_job_posting(body.jobPosting)
+    if job_posting_text.startswith("[browser-research error]"):
+        return JSONResponse(error_body(job_posting_text), status_code=502)
+
     lock = instances.get_lock(body.instanceId)
     async with lock:
         try:
@@ -602,7 +666,7 @@ async def cover_letter(body: GenerateRequest):
             company=body.company or "Unknown",
             role=body.role or "Unknown",
             notes=body.notes or "(none)",
-            job_posting=body.jobPosting or "",
+            job_posting=job_posting_text,
         )
 
         try:

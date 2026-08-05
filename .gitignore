@@ -49,6 +49,14 @@ venv/
 # present), regenerated fresh by install.ps1 on every run - never commit.
 .joblander-ca-bundle.pem
 
+# Saved Playwright login sessions (server/browser_research.py,
+# scripts/save-login-session.py) - real, working login cookies for the
+# user's own LinkedIn/Seek accounts. NEVER commit these. Deliberately its
+# own top-level folder, not under instances/: a login session is shared
+# across every candidate profile, tied to the user's own accounts, not
+# per-profile data.
+browser-sessions/
+
 # Node
 node_modules/
 

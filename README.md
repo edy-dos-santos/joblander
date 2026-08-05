@@ -40,6 +40,36 @@ If you already use git, or you'd rather have the full repository on disk for som
 
 ---
 
+## Get started (macOS / Linux)
+
+**The easiest way to install JobLander: run one command in a terminal. No git, no cloning,
+nothing else to download first.**
+
+```
+curl -fsSL https://raw.githubusercontent.com/edy-dos-santos/joblander/main/scripts/get-joblander.sh | bash
+```
+
+That's the whole first step. It explains on screen exactly what it's about to do, downloads
+JobLander from this repository onto your computer (your Desktop by default on macOS, or
+`~/JobLander` on Linux if no Desktop folder exists — it'll ask first if a JobLander folder is
+already there, and it never overwrites saved profiles without asking), and then automatically
+runs the same installer described under "Easy install (macOS / Linux)" below to get Python and
+everything else set up. Nothing to install first — just a terminal, which every Mac and Linux
+machine already has.
+
+### Other ways to get it
+
+If you already use git, or you'd rather have the full repository on disk for some other reason:
+
+- **Clone it**: `git clone https://github.com/edy-dos-santos/joblander.git`, then run
+  `./scripts/install.sh` (or `bash scripts/install.sh`) inside the cloned folder (same installer
+  either way — see "Easy install (macOS / Linux)" below).
+- **Download the archive by hand**: use GitHub's own green "Code → Download ZIP" button on the
+  [repo page](https://github.com/edy-dos-santos/joblander), extract it, then run
+  `./scripts/install.sh` inside the extracted folder.
+
+---
+
 ## Where the AI logic comes from
 
 The actual job-fit scoring, gap analysis, resume tailoring, and cover-letter writing are not
@@ -73,17 +103,18 @@ output into an actual downloadable Word document — none of that existed in any
 
 ## Before you start
 
-**On Windows, the easiest way to get set up is the one-file download in "Get started (Windows)"
-above** — it (and the installer described below, which it runs automatically) handles everything
-in this list for you, with nothing to install by hand.
+**The easiest way to get set up is the one-command/one-file install in "Get started (Windows)"
+or "Get started (macOS / Linux)" above** — it (and the installer described below, which it runs
+automatically) handles everything in this list for you, with nothing to install by hand.
 
 If you'd rather do it yourself (any OS, or you're troubleshooting), you need:
 
 - **Claude Code must already be installed and logged in** on this machine (`claude` CLI). This
   app doesn't have its own sign-in screen — it uses whatever Claude Code session is already
   authenticated. If you've never run `claude` before, set that up first.
-- **Python 3.11+** with `fastapi`, `uvicorn`, `python-docx`, `jinja2`, `httpx`, `pydantic`, and
-  `claude-agent-sdk` installed.
+- **Python 3.11+** with `fastapi`, `uvicorn`, `python-docx`, `jinja2`, `httpx`, `pydantic`,
+  `claude-agent-sdk`, and `playwright` installed (plus its Chromium browser — `playwright install
+  chromium`), for the browser-automation research features.
 - A modern browser (Chrome, Edge, Firefox).
 
 ## Easy install (Windows)
@@ -112,19 +143,56 @@ result before the window closes. (Each `.bat` is a thin wrapper around a same-na
 script under `scripts\` — Windows won't run `.ps1` files by double-click, so the `.bat` files are
 what you're meant to click; you shouldn't need to open `scripts\` yourself.)
 
-## Starting the app (manual, or non-Windows)
+## Easy install (macOS / Linux)
 
-If you're not on Windows, or you'd rather run things by hand instead of using the installer above:
+*(If you used the one-line `curl` command above, this already ran for you automatically — this
+section is here for reference, or for anyone who cloned/downloaded the repo directly instead.)*
+
+Two scripts live under `scripts/` in this app folder — no manual `pip install`:
+
+- **`scripts/install.sh`** — run this once. It checks that Claude Code is installed and logged in
+  (and walks you through signing in if not), finds a working `python3` 3.11+ on your machine
+  (printing the right `brew`/`apt`/`dnf`/`pacman` command to run yourself if none is found — this
+  script doesn't install Python for you), creates a private `.venv` folder just for JobLander so
+  nothing is installed into your system-wide Python, and installs the app's own dependencies into
+  it (including Playwright's Chromium browser, for the research features). Every step prints what
+  it's doing and why *before* it does anything outside this app's own folder (like signing in to
+  Claude Code), and it never changes anything system-wide without asking first.
+- **`scripts/start-joblander.sh`** — run this any time after setup finishes to start the app and
+  open your browser automatically.
+
+Run them from a terminal, from this app's root folder:
+
+```
+chmod +x scripts/install.sh scripts/start-joblander.sh   # first time only
+./scripts/install.sh
+./scripts/start-joblander.sh
+```
+
+Each prints what it's doing as it goes, the same way the Windows `.bat` console windows do.
+There's no macOS/Linux equivalent of the root-level `.bat` wrappers — unlike a `.ps1` file, a
+`.sh` file with its executable bit set runs directly from a terminal, so there's no
+double-click-association problem to work around, and adding a redundant top-level wrapper file
+wouldn't do anything a normal `scripts/install.sh` invocation doesn't already do.
+
+## Starting the app (manual)
+
+If you'd rather run things by hand instead of using the installer/launcher scripts above (any
+OS):
 
 ```
 cd server
 python main.py
 ```
 
+(On macOS/Linux, if you installed dependencies into `.venv` yourself, use
+`../.venv/bin/python main.py`, or activate the environment first with `source
+../.venv/bin/activate`.)
+
 Then open **http://127.0.0.1:8787/** in your browser. Leave the terminal window (or, if you used
-`Start-JobLander.bat`, that console window) open — closing it stops the server, and the app won't
-work without it. You'll know it's not running if you see a banner across the top of the page
-telling you the local backend isn't reachable.
+`Start-JobLander.bat` / `scripts/start-joblander.sh`, that console window) open — closing it stops
+the server, and the app won't work without it. You'll know it's not running if you see a banner
+across the top of the page telling you the local backend isn't reachable.
 
 If you already have the app open in a browser tab from a previous session, **do a hard refresh**
 (Ctrl+Shift+R / Ctrl+F5) before using it, especially after an update — browsers can hang on to an
@@ -210,7 +278,16 @@ Each profile card in the Profiles list has a 3-dot menu:
 From inside a profile, start a new application. The steps:
 
 ### 1. Job posting
-Paste the job posting text, or give it a URL to fetch it from.
+Paste the job posting text, or give it a URL to fetch it from. If the URL points at a site that
+blocks plain automated fetches (LinkedIn, Seek), the backend falls back to rendering the page in
+a real (headless) Chromium browser before reading its text — this still won't get past a site's
+own login wall or bot-challenge on its own. For LinkedIn/Seek specifically, you can optionally set
+up a saved login session once via `scripts/save-login-session.py` (you log in yourself, by hand,
+in a visible browser window it opens — it never touches your password) so future fetches from
+those sites use it. This is a personal-use convenience, not a bypass: both sites' Terms of Service
+generally prohibit automated scraping even by the account owner, and this app treats that as an
+accepted risk the same way it already piggybacks on your own Claude Code login instead of a paid
+API key.
 
 ### 2. CV info / template
 Confirm (or change) which CV Info and template this specific application should use.
@@ -268,12 +345,15 @@ any other file download — there's nothing special to configure.
 
 | Problem | What to check |
 |---|---|
-| `Get-JobLander.bat` says it couldn't download the setup script | Check your internet connection, then run it again. On a work/school network, a firewall may be blocking `github.com`/`raw.githubusercontent.com` — try the "Other ways to get it" options in "Get started (Windows)" instead. |
-| "Local backend not reachable" banner | Is `python main.py` (or the `Start-JobLander.bat` window) still running? Restart it if not. |
-| `Install-JobLander.bat` fails partway through | Read the message it printed — it explains what went wrong and what to do next. It's always safe to just run it again. |
+| `Get-JobLander.bat` / the `curl \| bash` command says it couldn't download the setup script | Check your internet connection, then run it again. On a work/school network, a firewall may be blocking `github.com`/`raw.githubusercontent.com` — try the "Other ways to get it" options in "Get started (Windows)" / "Get started (macOS / Linux)" instead. |
+| "Local backend not reachable" banner | Is `python main.py` (or the `Start-JobLander.bat` / `scripts/start-joblander.sh` window) still running? Restart it if not. |
+| `Install-JobLander.bat` / `scripts/install.sh` fails partway through | Read the message it printed — it explains what went wrong and what to do next. It's always safe to just run it again. |
+| `scripts/install.sh` can't find Python 3.11+ | Install it yourself (macOS: `brew install python3`; Linux: your distro's package manager, e.g. `sudo apt install python3 python3-venv python3-pip` on Debian/Ubuntu), then run the installer again. |
+| `pip` fails to build `lxml` on Linux | Usually only happens if pip falls back to building from source instead of using a prebuilt wheel. Try `sudo apt install libxml2-dev libxslt-dev python3-dev` (Debian/Ubuntu) or your distro's equivalent, then re-run the installer. |
 | Red "Couldn't reach Claude Code" on the connection check | Open a terminal and run `claude login`, then click Retry. This means the *server* is fine but your Claude Code session isn't — different from the banner above. |
 | AI actions show a "paused" message | You (or someone) clicked Disconnect on the AI provider connections screen. Click Reconnect there to resume. |
 | Downloads land with a strange name or won't open | Hard-refresh the page (Ctrl+Shift+R) — you may be running an old cached copy of the app. |
 | An AI step fails immediately | Confirm you're logged into Claude Code (`claude` CLI) on this machine. |
 | Creating a profile fails with a message about AI skill files being missing/incomplete | Your checkout of `backend/.claude/skills/job-application-assistant/` (see "Where the AI logic comes from" above) is incomplete or was deleted. Re-clone or re-download the repo — nothing else to configure. |
 | Nothing happens when you click something | Check the browser console for errors, then try a fresh tab. |
+| Job posting URL fetch fails, or comes back empty/garbled (LinkedIn/Seek especially) | Paste the job description text directly instead — the easiest fix. Otherwise, set up a saved login session with `scripts/save-login-session.py` (see "1. Job posting" above), or confirm Chromium installed correctly during setup (`.venv\Scripts\python.exe -m playwright install chromium`). Some pages will still refuse automated access outright (a CAPTCHA/bot-challenge) — this app doesn't try to defeat those. |
