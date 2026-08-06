@@ -152,14 +152,16 @@ body.sidebar-open .sidebar{width:236px}
 .sidebar :focus-visible{outline-color:var(--mustard)}
 .sidebar-label{overflow:hidden;display:flex;align-items:center;gap:8px}
 .sidebar-soon{font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.14);padding:2px 6px;border-radius:20px;color:#D8CFC0}
-/* Small permanent brand credit, pinned to the bottom of the sidebar rail
-   via margin-top:auto on the flex-column .sidebar parent - present in both
-   the collapsed (60px) and expanded (236px) states, same as every
-   .sidebar-item above it; naturally clipped by the parent's overflow-x:
-   hidden when collapsed, exactly like the nav labels are. */
-.sidebar-brand{margin-top:auto;padding:14px 18px 16px;font-size:12px;color:#D8CFC0;white-space:nowrap;overflow:hidden;font-family:'DM Sans',sans-serif}
-.sidebar-brand-brit{color:#3ECF6E;font-weight:700}
-.sidebar-brand-ai{color:#FFD84D;font-weight:700}
+/* Small permanent brand credit, pinned to the bottom-right corner of the
+   viewport (independent of the sidebar, so it's unaffected by collapsed/
+   expanded state or scroll position) - a small dark pill sitting over
+   whatever page content is beneath it. z-index sits below the sidebar
+   (300) and its mobile backdrop (250) so neither ever hides it. */
+.brand-credit{position:fixed;right:16px;bottom:16px;z-index:150;padding:8px 14px;border-radius:var(--radius);background:var(--umber);color:#D8CFC0;font-size:12px;white-space:nowrap;font-family:'DM Sans',sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.brand-credit-br{color:#3ECF6E;font-weight:700}
+.brand-credit-it{color:#95E5AF;font-weight:700}
+.brand-credit-amp{color:#FFEA9D;font-weight:700}
+.brand-credit-ai{color:#FFD84D;font-weight:700}
 .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(15,10,6,.4);z-index:250}
 @media(max-width:600px){
   body.sidebar-open .sidebar-backdrop{display:block}
@@ -431,9 +433,10 @@ body.sidebar-open .sidebar{width:236px}
       <span class="sidebar-label">GitHub repo<span class="sidebar-soon">Soon</span></span>
     </button>
   </div>
-  <div class="sidebar-brand" aria-hidden="true">a <span class="sidebar-brand-brit">BRIT</span><span class="sidebar-brand-ai">&amp;AI</span> app</div>
+
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="brand-credit" aria-hidden="true">a <span class="brand-credit-br">BR</span><span class="brand-credit-it">IT</span><span class="brand-credit-amp">&amp;</span><span class="brand-credit-ai">AI</span> app</div>
 <div id="app">
   <div class="topbar">
     <button class="topbar-brand" type="button" onclick="setView('landing')">JobLander</button>
