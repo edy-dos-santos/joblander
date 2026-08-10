@@ -2379,7 +2379,7 @@ function renderNewUser() {
         <input id="new-name" type="text" placeholder="e.g. Alex Johnson" value="${escAttr(state.name)}" maxlength="60">
         <div class="hint">Just for identifying your profile in the app.</div>
       </div>
-      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-bottom:12px">${state.error}</p>` : ''}
+      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-bottom:12px">${escAttr(state.error)}</p>` : ''}
       <button class="btn btn-primary" id="name-next">Next ${icons.arrow}</button>
     </div>`;
   }
@@ -2391,10 +2391,10 @@ function renderNewUser() {
       <label class="upload-zone" id="tmpl-zone">
         <input type="file" id="tmpl-file" accept=".docx,.pdf">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <div style="font-weight:600;margin-bottom:4px">${state.templateFile ? state.templateFile.name : 'Click to upload or drag & drop'}</div>
+        <div style="font-weight:600;margin-bottom:4px">${state.templateFile ? escAttr(state.templateFile.name) : 'Click to upload or drag &amp; drop'}</div>
         <div style="font-size:12px">${state.templateReading ? 'Reading file…' : '.docx or .pdf'}</div>
       </label>
-      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px">${state.error}</p>` : ''}
+      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px">${escAttr(state.error)}</p>` : ''}
       <div class="btn-group" style="margin-top:16px">
         <button class="btn btn-ghost" id="tmpl-back">Back</button>
         <button class="btn btn-ghost" id="tmpl-skip">Skip for now</button>
@@ -2453,7 +2453,7 @@ function renderNewUser() {
         <label class="upload-zone" id="info-zone">
           <input type="file" id="info-file" accept=".docx,.pdf">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:28px;height:28px;margin-bottom:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-          <div style="font-weight:600;font-size:14px">${state.infoFile ? state.infoFile.name : 'Click to upload or drag & drop'}</div>
+          <div style="font-weight:600;font-size:14px">${state.infoFile ? escAttr(state.infoFile.name) : 'Click to upload or drag &amp; drop'}</div>
         </label>` : showQaQuestion ? renderQaQuestion() : `
         <div class="field-group">
           <textarea id="info-paste" rows="10" placeholder="Dump everything here — jobs, skills, education, projects. No formatting needed, the AI will structure it.">${escAttr(state.infoPaste)}</textarea>
@@ -2481,7 +2481,7 @@ function renderNewUser() {
         <button type="button" class="btn btn-ghost btn-sm" id="info-cancel-map">Cancel</button>
         <span class="hint">Stops waiting here — the AI run may still finish in the background.</span>
       </div>` : ''}
-      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px" role="alert">${state.error}</p>` : ''}
+      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px" role="alert">${escAttr(state.error)}</p>` : ''}
       <div class="btn-group" style="margin-top:16px">
         <button class="btn btn-ghost" id="info-back" ${state.processing ? 'disabled' : ''}>Back</button>
         <button class="btn btn-ghost" id="info-skip" ${state.processing ? 'disabled' : ''}>Skip for now</button>
@@ -2597,7 +2597,23 @@ function renderNewUser() {
     const tmplBack = wrap.querySelector('#tmpl-back');
     if (tmplBack) tmplBack.onclick = () => { state.step = 'name'; state.error = ''; localRender(); };
     const tmplSkip = wrap.querySelector('#tmpl-skip');
-    if (tmplSkip) tmplSkip.onclick = () => { state.templateFile = null; state.templateB64 = ''; state.step = 'info'; state.error = ''; localRender(); };
+    // Skip is a third actor mutating template state, so it has to invalidate any
+    // read still in flight. Without the bump, skipping a large file before its
+    // read settles lets the success branch restore templateB64 afterwards,
+    // leaving {templateFile: null, templateB64: <contents>} — a profile created
+    // with a template the user explicitly declined, named "CV Template" because
+    // the File is gone. tmplBack deliberately does NOT bump: it preserves both
+    // fields, so a read landing after it is the file the user still has
+    // selected, and discarding it would disable Next with a filename on screen.
+    if (tmplSkip) tmplSkip.onclick = () => {
+      state.templateReadSeq++;
+      state.templateFile = null;
+      state.templateB64 = '';
+      state.templateReading = false;
+      state.step = 'info';
+      state.error = '';
+      localRender();
+    };
     const tmplNext = wrap.querySelector('#tmpl-next');
     if (tmplNext) tmplNext.onclick = () => { state.step = 'info'; state.error = ''; localRender(); };
 
