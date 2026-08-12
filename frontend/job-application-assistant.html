@@ -730,12 +730,22 @@ function notify(msg, type = 'success') {
   setTimeout(() => { el.className = 'notif'; }, 3500);
 }
 
+// A FileReader failure means the browser could not re-open the file the user
+// picked. Chrome validates the selection-time path + size + mtime when the read
+// actually happens, so a file that was overwritten, truncated, moved or renamed
+// in the meantime fails here with NotReadableError / NotFoundError. r.error
+// carries that distinction, so surface it instead of discarding it — a bare
+// "Read failed" gives the user nothing to act on.
+function readerError(file, r) {
+  return new Error(`Could not read "${file.name}" (${r.error?.name || 'unknown error'}${r.error?.message ? `: ${r.error.message}` : ''}) — the file may have been moved, renamed, or modified since you selected it.`);
+}
+
 // File to base64
 function fileToB64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(r.result.split(',')[1]);
-    r.onerror = () => rej(new Error('Read failed'));
+    r.onerror = () => rej(readerError(file, r));
     r.readAsDataURL(file);
   });
 }
@@ -743,7 +753,7 @@ function fileToBuffer(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(r.result);
-    r.onerror = () => rej(new Error('Read failed'));
+    r.onerror = () => rej(readerError(file, r));
     r.readAsArrayBuffer(file);
   });
 }
@@ -2338,7 +2348,14 @@ function renderNewUser() {
   // steps: name → template → info
   let state = {
     step: 'name', name: '',
+    // The template is read to base64 the moment it is selected (see the
+    // #tmpl-file / #tmpl-zone handlers) rather than on Save. Holding the File
+    // object and reading it later fails whenever the backing file changed on
+    // disk in between. templateReading gates the step's Next button while that
+    // read is in flight; templateReadSeq is a generation token so a slow first
+    // selection cannot clobber a faster second one.
     templateFile: null, templateB64: '',
+    templateReading: false, templateReadSeq: 0,
     infoMode: 'upload', infoFile: null, infoPaste: '',
     qaStep: 0, qaAnswers: {}, qaDone: false, // P4 — guided Q&A intake
     outputFormat: 'docx',
@@ -2362,7 +2379,7 @@ function renderNewUser() {
         <input id="new-name" type="text" placeholder="e.g. Alex Johnson" value="${escAttr(state.name)}" maxlength="60">
         <div class="hint">Just for identifying your profile in the app.</div>
       </div>
-      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-bottom:12px">${state.error}</p>` : ''}
+      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-bottom:12px">${escAttr(state.error)}</p>` : ''}
       <button class="btn btn-primary" id="name-next">Next ${icons.arrow}</button>
     </div>`;
   }
@@ -2374,14 +2391,14 @@ function renderNewUser() {
       <label class="upload-zone" id="tmpl-zone">
         <input type="file" id="tmpl-file" accept=".docx,.pdf">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <div style="font-weight:600;margin-bottom:4px">${state.templateFile ? state.templateFile.name : 'Click to upload or drag & drop'}</div>
-        <div style="font-size:12px">.docx or .pdf</div>
+        <div style="font-weight:600;margin-bottom:4px">${state.templateFile ? escAttr(state.templateFile.name) : 'Click to upload or drag &amp; drop'}</div>
+        <div style="font-size:12px">${state.templateReading ? 'Reading file…' : '.docx or .pdf'}</div>
       </label>
-      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px">${state.error}</p>` : ''}
+      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px">${escAttr(state.error)}</p>` : ''}
       <div class="btn-group" style="margin-top:16px">
         <button class="btn btn-ghost" id="tmpl-back">Back</button>
         <button class="btn btn-ghost" id="tmpl-skip">Skip for now</button>
-        <button class="btn btn-primary" id="tmpl-next" ${!state.templateFile ? 'disabled' : ''}>Next ${icons.arrow}</button>
+        <button class="btn btn-primary" id="tmpl-next" ${state.templateReading || !state.templateB64 ? 'disabled' : ''}>${state.templateReading ? 'Reading…' : `Next ${icons.arrow}`}</button>
       </div>
     </div>`;
   }
@@ -2436,7 +2453,7 @@ function renderNewUser() {
         <label class="upload-zone" id="info-zone">
           <input type="file" id="info-file" accept=".docx,.pdf">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:28px;height:28px;margin-bottom:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-          <div style="font-weight:600;font-size:14px">${state.infoFile ? state.infoFile.name : 'Click to upload or drag & drop'}</div>
+          <div style="font-weight:600;font-size:14px">${state.infoFile ? escAttr(state.infoFile.name) : 'Click to upload or drag &amp; drop'}</div>
         </label>` : showQaQuestion ? renderQaQuestion() : `
         <div class="field-group">
           <textarea id="info-paste" rows="10" placeholder="Dump everything here — jobs, skills, education, projects. No formatting needed, the AI will structure it.">${escAttr(state.infoPaste)}</textarea>
@@ -2464,7 +2481,7 @@ function renderNewUser() {
         <button type="button" class="btn btn-ghost btn-sm" id="info-cancel-map">Cancel</button>
         <span class="hint">Stops waiting here — the AI run may still finish in the background.</span>
       </div>` : ''}
-      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px" role="alert">${state.error}</p>` : ''}
+      ${state.error ? `<p style="color:var(--danger);font-size:13px;margin-top:10px" role="alert">${escAttr(state.error)}</p>` : ''}
       <div class="btn-group" style="margin-top:16px">
         <button class="btn btn-ghost" id="info-back" ${state.processing ? 'disabled' : ''}>Back</button>
         <button class="btn btn-ghost" id="info-skip" ${state.processing ? 'disabled' : ''}>Skip for now</button>
@@ -2520,6 +2537,42 @@ function renderNewUser() {
       }
     }
 
+    // Read the picked template to base64 immediately. Deferring this to Save
+    // means re-opening a path the user may have overwritten, truncated, moved
+    // or renamed in the meantime, which Chrome rejects outright — the whole
+    // profile-creation run (including the expensive CV-mapping call) would then
+    // die on a stale template.
+    async function selectTemplate(f) {
+      // Generation token: a user swapping files quickly can have two reads in
+      // flight at once, and they may settle out of order. Only the newest
+      // selection is allowed to write to state, so the last file picked always
+      // wins regardless of which read finishes first.
+      const seq = ++state.templateReadSeq;
+      state.templateFile = f;
+      state.templateB64 = '';
+      state.templateReading = true;
+      state.error = '';
+      localRender();
+      let b64;
+      try {
+        b64 = await fileToB64(f);
+      } catch (err) {
+        if (seq !== state.templateReadSeq) return; // superseded — newer selection owns state
+        // Keep the user on the template step with the failure shown inline so
+        // they can re-pick, rather than advancing with no template.
+        state.templateFile = null;
+        state.templateB64 = '';
+        state.templateReading = false;
+        state.error = err.message;
+        localRender();
+        return;
+      }
+      if (seq !== state.templateReadSeq) return; // superseded — newer selection owns state
+      state.templateB64 = b64;
+      state.templateReading = false;
+      localRender();
+    }
+
     function attachHandlers() {
       // Name step
       const nameNext = wrap.querySelector('#name-next');
@@ -2531,20 +2584,36 @@ function renderNewUser() {
 
       // Template step
       const tmplFile = wrap.querySelector('#tmpl-file');
-      if (tmplFile) tmplFile.onchange = async e => {
+      if (tmplFile) tmplFile.onchange = e => {
         const f = e.target.files[0]; if (!f) return;
-        state.templateFile = f; state.error = ''; localRender();
+        selectTemplate(f);
       };
       const tmplZone = wrap.querySelector('#tmpl-zone');
     if (tmplZone) {
       tmplZone.ondragover = e => { e.preventDefault(); tmplZone.classList.add('drag'); };
       tmplZone.ondragleave = () => tmplZone.classList.remove('drag');
-      tmplZone.ondrop = e => { e.preventDefault(); tmplZone.classList.remove('drag'); const f = e.dataTransfer.files[0]; if (f) { state.templateFile = f; localRender(); } };
+      tmplZone.ondrop = e => { e.preventDefault(); tmplZone.classList.remove('drag'); const f = e.dataTransfer.files[0]; if (f) selectTemplate(f); };
     }
     const tmplBack = wrap.querySelector('#tmpl-back');
     if (tmplBack) tmplBack.onclick = () => { state.step = 'name'; state.error = ''; localRender(); };
     const tmplSkip = wrap.querySelector('#tmpl-skip');
-    if (tmplSkip) tmplSkip.onclick = () => { state.templateFile = null; state.step = 'info'; state.error = ''; localRender(); };
+    // Skip is a third actor mutating template state, so it has to invalidate any
+    // read still in flight. Without the bump, skipping a large file before its
+    // read settles lets the success branch restore templateB64 afterwards,
+    // leaving {templateFile: null, templateB64: <contents>} — a profile created
+    // with a template the user explicitly declined, named "CV Template" because
+    // the File is gone. tmplBack deliberately does NOT bump: it preserves both
+    // fields, so a read landing after it is the file the user still has
+    // selected, and discarding it would disable Next with a filename on screen.
+    if (tmplSkip) tmplSkip.onclick = () => {
+      state.templateReadSeq++;
+      state.templateFile = null;
+      state.templateB64 = '';
+      state.templateReading = false;
+      state.step = 'info';
+      state.error = '';
+      localRender();
+    };
     const tmplNext = wrap.querySelector('#tmpl-next');
     if (tmplNext) tmplNext.onclick = () => { state.step = 'info'; state.error = ''; localRender(); };
 
@@ -2627,8 +2696,10 @@ function renderNewUser() {
     const infoSkip = wrap.querySelector('#info-skip');
     if (infoSkip) infoSkip.onclick = async () => {
       if (state.processing) return;
-      const templateB64 = state.templateFile ? await fileToB64(state.templateFile) : null;
-      await createUser(templateB64, state.templateFile?.name, null, null, '');
+      // Already read at selection time — no FileReader here, so a template
+      // whose backing file changed on disk since it was picked cannot break
+      // this path.
+      await createUser(state.templateB64 || null, state.templateFile?.name, null, null, '');
     };
     const infoCancelMap = wrap.querySelector('#info-cancel-map');
     if (infoCancelMap) infoCancelMap.onclick = () => {
@@ -2653,7 +2724,9 @@ function renderNewUser() {
         if (elEl) elEl.textContent = `${sec}s`;
       });
       try {
-        const templateB64 = state.templateFile ? await fileToB64(state.templateFile) : null;
+        // Already read at selection time — see selectTemplate. Reading it here
+        // instead would re-open the original path and fail if the file changed.
+        const templateB64 = state.templateB64 || null;
         let rawText = '';
         if (state.infoMode === 'upload' && state.infoFile) {
           if (state.infoFile.name.endsWith('.pdf')) {
