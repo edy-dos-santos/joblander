@@ -399,17 +399,28 @@ async def evaluate(body: EvaluateRequest):
         # because the new gaps extraction didn't parse.
         markdown_text = result.text
         gaps: list[dict] = []
+        # Surfaces explicitly whether the model produced a genuine
+        # structured evaluation - extract_json failing here doesn't just
+        # mean "gaps didn't parse", it's the same signal that fires when the
+        # model declines to evaluate at all (e.g. the job-posting field
+        # wasn't actually a job posting, so it replied conversationally
+        # instead of with the requested JSON envelope). Previously that
+        # case was indistinguishable from a genuine clean-fit evaluation
+        # with zero gaps.
+        structured = True
         try:
             data = agent_client.extract_json(result.text)
             markdown_text = data.get("markdown") or result.text
             gaps = data.get("gaps") or []
         except Exception as e:
             logger.warning("v1/evaluate: could not parse structured gaps output: %s", e)
+            structured = False
 
     return {
         "content": [{"type": "text", "text": markdown_text}],
         "usage": {"input_tokens": result.input_tokens, "output_tokens": result.output_tokens},
         "gaps": gaps,
+        "structured": structured,
     }
 
 
