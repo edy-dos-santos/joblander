@@ -469,6 +469,12 @@ points/lines within a field; leave a field "" if there is truly nothing to put t
 "skills":"","summary":"","workHistory":"","education":"","certifications":"",\
 "projects":""}},"company":"","role":"","summary":"","transparency":[]}}
 
+Within each section's own text, write PLAIN TEXT ONLY - a separate .docx renderer turns \
+this into the actual document, and it does not run a full Markdown engine. Start a line \
+with "- " for a bullet point (the renderer converts that into a real bulleted line) and \
+nothing else - no "##"/"###" headings, no "**bold**", no other Markdown syntax anywhere \
+in the section text, even for job titles or standout items.
+
 The top-level "summary" field (distinct from "sections.summary", which is the CV's \
 own profile-statement blurb) is a short, human-readable explanation of what you \
 tailored and why, written for the candidate to read - mention any transparency flags \
@@ -524,6 +530,11 @@ include short bullet lines separated by \\n)","closing paragraph"],\
 "closing":"Kind regards,","signatureName":"","company":"","role":"",\
 "summary":"a short human-readable note on what you emphasized and why",\
 "transparency":[]}}
+
+Within "greeting"/"paragraphs"/"closing", write PLAIN TEXT ONLY - a separate .docx \
+renderer turns this into the actual document, and it does not run a full Markdown \
+engine. Start a line with "- " for a bullet point and nothing else - no "##"/"###" \
+headings, no "**bold**", no other Markdown syntax.
 
 "transparency" is a short JSON array of plain strings, one per notable claim that \
 leans on a plausible-but-not-explicit inference rather than something the profile \

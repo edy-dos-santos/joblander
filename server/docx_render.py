@@ -70,6 +70,15 @@ SECTION_LABELS = {
 
 _BULLET_PREFIXES = ("- ", "* ", "\u2022 ", "\u2022")
 
+# The prompts ask the model for plain text, but it still sometimes falls back
+# to Markdown habits (picked up from the Markdown-heavy skill docs it reads
+# for tailoring guidance) - '##'/'###' headers and '**bold**' spans. Neither
+# was previously parsed, so the literal '#'/'*' characters leaked straight
+# into the .docx. Parsed here rather than relying solely on prompt wording,
+# since instruction-following isn't guaranteed.
+_HEADING_RE = re.compile(r"^#{1,6}\s+(.*)$")
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+
 _UNSAFE_FILENAME_CHARS = re.compile(r'[^A-Za-z0-9 ._-]+')
 
 
@@ -223,16 +232,41 @@ _RESUME_SECTION_ORDER = [
 ]
 
 
+def _add_bold_runs(paragraph: Paragraph, text: str) -> None:
+    """Add `text` to `paragraph` as one or more runs, turning **bold** spans
+    into real bold runs and stripping the asterisks, instead of leaving the
+    literal markers in the document."""
+    pos = 0
+    matched = False
+    for m in _BOLD_RE.finditer(text):
+        matched = True
+        if m.start() > pos:
+            paragraph.add_run(text[pos:m.start()])
+        paragraph.add_run(m.group(1)).bold = True
+        pos = m.end()
+    if pos < len(text) or not matched:
+        paragraph.add_run(text[pos:])
+
+
 def _add_body_lines(doc: Document, value: str) -> None:
     for raw_line in (value or "").split("\n"):
         line = raw_line.strip()
         if not line:
             continue
+        heading_m = _HEADING_RE.match(line)
+        if heading_m:
+            p = doc.add_paragraph()
+            _add_bold_runs(p, heading_m.group(1).strip())
+            for run in p.runs:
+                run.bold = True
+            continue
         if line.startswith(_BULLET_PREFIXES):
             text = line.lstrip("-*\u2022").strip()
-            doc.add_paragraph(text, style="List Bullet")
+            p = doc.add_paragraph(style="List Bullet")
+            _add_bold_runs(p, text)
         else:
-            doc.add_paragraph(line)
+            p = doc.add_paragraph()
+            _add_bold_runs(p, line)
 
 
 def render_resume_plain(
