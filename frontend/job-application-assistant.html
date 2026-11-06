@@ -3464,19 +3464,29 @@ function renderStepD(app, user) {
       // exact same report as before — this is purely additive). Coerce to
       // an array defensively in case an older/misbehaving backend omits it.
       const gaps = Array.isArray(data.gaps) ? data.gaps : [];
+      // Whether the model actually produced a real structured evaluation,
+      // instead of inferring it from an empty gaps array (which also
+      // happens for a genuine clean-fit evaluation with no gaps). Missing
+      // field (older backend) defaults to true - same defensive style as
+      // gaps above.
+      const structured = data.structured !== false;
 
-      app.evaluation = { text, tokens, gaps };
+      app.evaluation = { text, tokens, gaps, structured };
       saveApplication(app);
 
       stopTicker();
-      if (evalEl) evalEl.innerHTML = `<span style="color:var(--success)">✓</span> Evaluation complete <span class="token-pill">${fmtTokens(tokens)}</span>`;
+      if (evalEl) {
+        evalEl.innerHTML = structured
+          ? `<span style="color:var(--success)">✓</span> Evaluation complete <span class="token-pill">${fmtTokens(tokens)}</span>`
+          : `<span style="color:var(--warn-text)">⚠</span> Couldn't complete a real evaluation <span class="token-pill">${fmtTokens(tokens)}</span>`;
+      }
       const cancelRow = div.querySelector('#d-cancel-row');
       if (cancelRow) cancelRow.style.display = 'none';
 
       // This can be a substantial report — show it and let the user decide
       // whether to proceed, rather than auto-advancing past it unread.
       const resultEl = div.querySelector('#d-result');
-      if (resultEl) {
+      if (resultEl && structured) {
         resultEl.innerHTML = `
           <div class="md-report" style="max-height:480px;overflow-y:auto;margin-top:16px;padding:4px">${renderMarkdown(text)}</div>
           <div class="btn-group" style="margin-top:16px">
@@ -3489,6 +3499,27 @@ function renderStepD(app, user) {
           // array proceeds straight to tailoring exactly as before, so
           // there's no pointless empty step for a clean-fit evaluation.
           AppState.wizardStep = gaps.length > 0 ? 'D_gaps' : 'E';
+          render();
+        };
+      } else if (resultEl) {
+        // Not a real evaluation - most often because the pasted "job
+        // posting" wasn't actually one, so the model replied
+        // conversationally instead of with the requested JSON report.
+        // Shown in the existing warning-style callout (not the normal
+        // report box) with a button that goes straight to step 1 (JD
+        // source) - the actual place to fix this - instead of letting the
+        // user proceed into tailoring with the same bad input.
+        resultEl.innerHTML = `
+          <div class="transparency" style="margin-top:16px">
+            <div class="t-title">This doesn't look like a completed evaluation</div>
+            <div class="md-report" style="max-height:400px;overflow-y:auto">${renderMarkdown(text)}</div>
+          </div>
+          <div class="btn-group" style="margin-top:16px">
+            <button class="btn btn-ghost" onclick="AppState.wizardStep='C';render()">${icons.back} Back</button>
+            <button class="btn btn-primary" id="d-fix-jd">${icons.back} Fix job posting</button>
+          </div>`;
+        resultEl.querySelector('#d-fix-jd').onclick = () => {
+          AppState.wizardStep = 'A';
           render();
         };
       }

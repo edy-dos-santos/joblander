@@ -399,17 +399,28 @@ async def evaluate(body: EvaluateRequest):
         # because the new gaps extraction didn't parse.
         markdown_text = result.text
         gaps: list[dict] = []
+        # Surfaces explicitly whether the model produced a genuine
+        # structured evaluation - extract_json failing here doesn't just
+        # mean "gaps didn't parse", it's the same signal that fires when the
+        # model declines to evaluate at all (e.g. the job-posting field
+        # wasn't actually a job posting, so it replied conversationally
+        # instead of with the requested JSON envelope). Previously that
+        # case was indistinguishable from a genuine clean-fit evaluation
+        # with zero gaps.
+        structured = True
         try:
             data = agent_client.extract_json(result.text)
             markdown_text = data.get("markdown") or result.text
             gaps = data.get("gaps") or []
         except Exception as e:
             logger.warning("v1/evaluate: could not parse structured gaps output: %s", e)
+            structured = False
 
     return {
         "content": [{"type": "text", "text": markdown_text}],
         "usage": {"input_tokens": result.input_tokens, "output_tokens": result.output_tokens},
         "gaps": gaps,
+        "structured": structured,
     }
 
 
@@ -469,6 +480,12 @@ points/lines within a field; leave a field "" if there is truly nothing to put t
 "skills":"","summary":"","workHistory":"","education":"","certifications":"",\
 "projects":""}},"company":"","role":"","summary":"","transparency":[]}}
 
+Within each section's own text, write PLAIN TEXT ONLY - a separate .docx renderer turns \
+this into the actual document, and it does not run a full Markdown engine. Start a line \
+with "- " for a bullet point (the renderer converts that into a real bulleted line) and \
+nothing else - no "##"/"###" headings, no "**bold**", no other Markdown syntax anywhere \
+in the section text, even for job titles or standout items.
+
 The top-level "summary" field (distinct from "sections.summary", which is the CV's \
 own profile-statement blurb) is a short, human-readable explanation of what you \
 tailored and why, written for the candidate to read - mention any transparency flags \
@@ -524,6 +541,11 @@ include short bullet lines separated by \\n)","closing paragraph"],\
 "closing":"Kind regards,","signatureName":"","company":"","role":"",\
 "summary":"a short human-readable note on what you emphasized and why",\
 "transparency":[]}}
+
+Within "greeting"/"paragraphs"/"closing", write PLAIN TEXT ONLY - a separate .docx \
+renderer turns this into the actual document, and it does not run a full Markdown \
+engine. Start a line with "- " for a bullet point and nothing else - no "##"/"###" \
+headings, no "**bold**", no other Markdown syntax.
 
 "transparency" is a short JSON array of plain strings, one per notable claim that \
 leans on a plausible-but-not-explicit inference rather than something the profile \
