@@ -1,0 +1,12 @@
+rule,records_affected,action,example_ids
+Exact duplicate rows,12,"Removed duplicates, kept first","E101132, E101328, E102862"
+Employee ID appears on more than one distinct record,0,Flag only - none expected,
+Division name has stray whitespace or casing,25,Standardised to reference list,"E103581, E104153, E100071"
+Division not in reference list,0,Flag only - none expected,
+Gender recorded with a non-standard label,40,Mapped to standard categories,"E102789, E103006, E102112"
+End date earlier than start date,9,Dates transposed at entry - swapped back,"E101053, E103712, E102233"
+Salary more than 3x classification median,4,Extra digit keyed - divided by 10,"E100389, E100704, E102557"
+Missing FTE,15,Imputed with median FTE for the same employment type,"E105001, E100849, E105187"
+Separated with no separation reason,6,Set to 'Other' (not treated as voluntary),"E103350, E101906, E101148"
+Aged under 16 at commencement,0,Flag only - none expected,
+FTE outside 0-1,0,Flag only - none expected,

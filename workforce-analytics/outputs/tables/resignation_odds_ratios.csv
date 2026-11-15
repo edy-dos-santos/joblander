@@ -1,0 +1,9 @@
+,odds_ratio,ci_low,ci_high,p_value
+Tenure under 2 yrs (vs 5+ yrs),1.3783,1.1469,1.6564,0.0006
+Tenure 2-5 yrs (vs 5+ yrs),1.0102,0.8428,1.2109,0.9123
+Fixed-term (vs ongoing),1.6803,1.4304,1.9739,0.0
+Aged under 35 (vs 35-49),1.1015,0.9304,1.3039,0.2616
+Aged 50+ (vs 35-49),0.7485,0.6251,0.8963,0.0016
+Woman (vs man),1.1498,0.9956,1.3279,0.0574
+Academic (vs professional),0.9555,0.8219,1.1107,0.5531
+Digital & Technology (vs other areas),1.6962,1.3453,2.1385,0.0
